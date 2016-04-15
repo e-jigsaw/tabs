@@ -166,10 +166,16 @@ class TabView extends HTMLElement
   updateTitle: ({updateSiblings, useLongTitle}={}) ->
     return if @updatingTitle
     @updatingTitle = true
+    getLongTitle = =>
+      str = @item.getLongTitle?()
+      if str.match(/—/) != null
+        ss = str.split ' — '
+        str = "#{ss[1]} — #{ss[0]}"
+      str ? title
 
     if updateSiblings is false
       title = @item.getTitle()
-      title = @item.getLongTitle?() ? title if useLongTitle
+      title = getLongTitle() if useLongTitle
       @itemTitle.textContent = title
     else
       title = @item.getTitle()
@@ -178,7 +184,7 @@ class TabView extends HTMLElement
         if tab.item.getTitle() is title
           tab.updateTitle(updateSiblings: false, useLongTitle: true)
           useLongTitle = true
-      title = @item.getLongTitle?() ? title if useLongTitle
+      title = getLongTitle() if useLongTitle
 
       @itemTitle.textContent = title
 
