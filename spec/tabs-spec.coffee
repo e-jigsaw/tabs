@@ -132,6 +132,7 @@ describe "TabBarView", ->
         onDidChangeIcon: ->
         onDidChangeModified: ->
         onDidSave: ->
+        onDidChangePath: ->
 
       warnings = []
       spyOn(console, "warn").andCallFake (message, object) ->
@@ -143,14 +144,17 @@ describe "TabBarView", ->
       expect(warnings[0].message).toContain("onDidChangeTitle")
       expect(warnings[0].object).toBe(badItem)
 
-      expect(warnings[1].message).toContain("onDidChangeIcon")
+      expect(warnings[1].message).toContain("onDidChangePath")
       expect(warnings[1].object).toBe(badItem)
 
-      expect(warnings[2].message).toContain("onDidChangeModified")
+      expect(warnings[2].message).toContain("onDidChangeIcon")
       expect(warnings[2].object).toBe(badItem)
 
-      expect(warnings[3].message).toContain("onDidSave")
+      expect(warnings[3].message).toContain("onDidChangeModified")
       expect(warnings[3].object).toBe(badItem)
+
+      expect(warnings[4].message).toContain("onDidSave")
+      expect(warnings[4].object).toBe(badItem)
 
   describe "when the active pane item changes", ->
     it "highlights the tab for the new active pane item", ->
@@ -187,6 +191,14 @@ describe "TabBarView", ->
         pane.activateItem(item3)
         expect($(tabBar).find('.tab').length).toBe 4
         expect($(tabBar.tabAtIndex(3)).find('.title')).toHaveText 'Item 3'
+
+      it "puts the new tab at the last index of the pane's items", ->
+        atom.config.set("tabs.addNewTabsAtEnd", true)
+        item3 = new TestView('Item 3')
+        # activate item1 so default is to add immediately after
+        pane.activateItem(item1)
+        pane.activateItem(item3)
+        expect(pane.getItems()[pane.getItems().length - 1]).toEqual item3
 
     describe "when addNewTabsAtEnd is set to false in package settings", ->
       it "adds a tab for the new item at the same index as the item in the pane", ->
@@ -416,7 +428,6 @@ describe "TabBarView", ->
     beforeEach ->
       paneElement = atom.views.getView(pane)
       paneElement.insertBefore(tabBar, paneElement.firstChild)
-      jasmine.attachToDOM(paneElement) # Remove after Atom 1.2.0 is released
 
     describe "when tabs:close-tab is fired", ->
       it "closes the active tab", ->
@@ -445,6 +456,16 @@ describe "TabBarView", ->
         expect(tabBar.getTabs().length).toBe 2
         expect($(tabBar).find('.tab:contains(Item 2)')).not.toExist()
         expect($(tabBar).find('.tab:contains(Item 1)')).toExist()
+
+    describe "when tabs:close-tabs-to-left is fired", ->
+      it "closes only the tabs to the left of the active tab", ->
+        pane.activateItem(editor1)
+        triggerMouseEvent('mousedown', tabBar.tabForItem(editor1), which: 3)
+        atom.commands.dispatch(tabBar, 'tabs:close-tabs-to-left')
+        expect(pane.getItems().length).toBe 2
+        expect(tabBar.getTabs().length).toBe 2
+        expect($(tabBar).find('.tab:contains(Item 2)')).toExist()
+        expect($(tabBar).find('.tab:contains(Item 1)')).not.toExist()
 
     describe "when tabs:close-all-tabs is fired", ->
       it "closes all the tabs", ->
@@ -500,18 +521,28 @@ describe "TabBarView", ->
         expect(atom.workspace.getPanes()[1].getItems()[0].getTitle()).toBe item2.getTitle()
 
     describe "when tabs:open-in-new-window is fired", ->
-      it "opens new window, closes current tab", ->
-        triggerMouseEvent('mousedown', tabBar.tabForItem(item1), which: 3)
-        expect(atom.workspace.getPanes().length).toBe 1
+      describe "by right-clicking on a tab", ->
+        beforeEach ->
+          triggerMouseEvent('mousedown', tabBar.tabForItem(item1), which: 3)
+          expect(atom.workspace.getPanes().length).toBe 1
 
-        spyOn(atom, 'open')
-        atom.commands.dispatch(tabBar, 'tabs:open-in-new-window')
-        expect(atom.open).toHaveBeenCalled()
+        it "opens new window, closes current tab", ->
+          spyOn(atom, 'open')
+          atom.commands.dispatch(tabBar, 'tabs:open-in-new-window')
+          expect(atom.open).toHaveBeenCalled()
 
-        expect(pane.getItems().length).toBe 2
-        expect(tabBar.getTabs().length).toBe 2
-        expect($(tabBar).find('.tab:contains(Item 2)')).toExist()
-        expect($(tabBar).find('.tab:contains(Item 1)')).not.toExist()
+          expect(pane.getItems().length).toBe 2
+          expect(tabBar.getTabs().length).toBe 2
+          expect($(tabBar).find('.tab:contains(Item 2)')).toExist()
+          expect($(tabBar).find('.tab:contains(Item 1)')).not.toExist()
+
+      describe "from the command palette", ->
+        # See #309 for background
+
+        it "does nothing", ->
+          spyOn(atom, 'open')
+          atom.commands.dispatch(tabBar, 'tabs:open-in-new-window')
+          expect(atom.open).not.toHaveBeenCalled()
 
   describe "command palette commands", ->
     paneElement = null

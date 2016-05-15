@@ -1,6 +1,5 @@
 BrowserWindow = null # Defer require until actually used
-# TODO: Remove the catch once Electron 0.35.0 is bundled in Atom
-try {ipcRenderer} = require 'electron' catch then ipcRenderer = require 'ipc'
+{ipcRenderer} = require 'electron'
 
 {matches, closest, indexOf} = require './html-helpers'
 {CompositeDisposable} = require 'atom'
@@ -22,6 +21,7 @@ class TabBarView extends HTMLElement
       'tabs:close-tab': => @closeTab(@getActiveTab())
       'tabs:close-other-tabs': => @closeOtherTabs(@getActiveTab())
       'tabs:close-tabs-to-right': => @closeTabsToRight(@getActiveTab())
+      'tabs:close-tabs-to-left': => @closeTabsToLeft(@getActiveTab())
       'tabs:close-saved-tabs': => @closeSavedTabs()
       'tabs:close-all-tabs': => @closeAllTabs()
       'tabs:open-in-new-window': => @openInNewWindow()
@@ -39,6 +39,7 @@ class TabBarView extends HTMLElement
       'tabs:close-tab': => @closeTab()
       'tabs:close-other-tabs': => @closeOtherTabs()
       'tabs:close-tabs-to-right': => @closeTabsToRight()
+      'tabs:close-tabs-to-left': => @closeTabsToLeft()
       'tabs:close-saved-tabs': => @closeSavedTabs()
       'tabs:close-all-tabs': => @closeAllTabs()
       'tabs:split-up': => @splitTab('splitUp')
@@ -95,10 +96,9 @@ class TabBarView extends HTMLElement
     tabView = new TabView()
     tabView.initialize(item, @pane)
     tabView.terminatePendingState() if @isItemMovingBetweenPanes
+    @insertTabAtIndex(tabView, index)
     if atom.config.get('tabs.addNewTabsAtEnd')
-      @appendChild(tabView)
-    else
-      @insertTabAtIndex(tabView, index)
+      @pane.moveItem(item, @pane.getItems().length - 1)
 
   moveItemTabToIndex: (item, index) ->
     if tab = @tabForItem(item)
@@ -151,7 +151,7 @@ class TabBarView extends HTMLElement
 
   openInNewWindow: (tab) ->
     tab ?= @querySelector('.right-clicked')
-    item = tab.item
+    item = tab?.item
     return unless item?
     if typeof item.getURI is 'function'
       itemURI = item.getURI()
@@ -163,7 +163,7 @@ class TabBarView extends HTMLElement
     @closeTab(tab)
     pathsToOpen = [atom.project.getPaths(), itemURI].reduce ((a, b) -> a.concat(b)), []
     atom.open({pathsToOpen: pathsToOpen, newWindow: true, devMode: atom.devMode, safeMode: atom.safeMode})
-  
+
   splitTab: (fn) ->
     if item = @querySelector('.right-clicked')?.item
       if copiedItem = @copyItem(item)
@@ -184,6 +184,13 @@ class TabBarView extends HTMLElement
     index = tabs.indexOf(active)
     return if index is -1
     @closeTab tab for tab, i in tabs when i > index
+
+  closeTabsToLeft: (active) ->
+    tabs = @getTabs()
+    active ?= @querySelector('.right-clicked')
+    index = tabs.indexOf(active)
+    return if index is -1
+    @closeTab tab for tab, i in tabs when i < index
 
   closeSavedTabs: ->
     for tab in @getTabs()
@@ -390,10 +397,7 @@ class TabBarView extends HTMLElement
       @removeEventListener 'mousewheel', @onMouseWheel
 
   browserWindowForId: (id) ->
-    try
-      BrowserWindow ?= require('electron').remote.BrowserWindow
-    catch # TODO: Remove once Electron 0.35.0 is bundled in Atom
-      BrowserWindow ?= require('remote').require('browser-window')
+    BrowserWindow ?= require('electron').remote.BrowserWindow
 
     BrowserWindow.fromId id
 
