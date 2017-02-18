@@ -1,7 +1,4 @@
-{closest, indexOf, matches} = require './html-helpers'
-
 module.exports =
-
   activate: ->
     @view = document.createElement 'div'
     atom.views.getView(atom.workspace).appendChild @view
@@ -25,7 +22,7 @@ module.exports =
 
   end: (e) ->
     @disableView()
-    return unless @getItemViewAt @lastCoords
+    return unless @lastCoords? and @getItemViewAt @lastCoords
     target = @getPaneAt @lastCoords
     return unless target?
     toPane = switch @lastSplit
@@ -35,15 +32,15 @@ module.exports =
       when 'down'  then target.splitDown()
     tab = e.target
     toPane ?= target
-    fromPane = @paneForTab tab
+    fromPane = tab.pane
     return if toPane is fromPane
-    item = @itemForTab tab
+    item = tab.item
     fromPane.moveItemToPane item, toPane
     toPane.activateItem item
     toPane.activate()
 
   getElement: ({clientX, clientY}, selector = '*') ->
-    closest document.elementFromPoint(clientX, clientY), selector
+    document.elementFromPoint(clientX, clientY).closest(selector)
 
   getItemViewAt: (coords) ->
     @test.itemView or @getElement coords, '.item-views'
@@ -51,14 +48,8 @@ module.exports =
   getPaneAt: (coords) ->
     @test.pane or @getElement(@lastCoords, 'atom-pane')?.getModel()
 
-  paneForTab: (tab) ->
-    tab.parentElement.pane
-
-  itemForTab: (tab) ->
-    @paneForTab(tab).getItems()[indexOf(tab)]
-
   isOnlyTabInPane: (pane, tab) ->
-    pane.getItems().length is 1 and pane is @paneForTab tab
+    pane.getItems().length is 1 and pane is tab.pane
 
   normalizeCoords: ({left, top, width, height}, [x, y]) ->
     [(x-left)/width, (y-top)/height]
